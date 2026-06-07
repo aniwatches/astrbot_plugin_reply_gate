@@ -1,0 +1,5 @@
+name: astrbot_plugin_reply_gate
+description: "群聊回复门控插件：模型先判断是否该接话，AstrBot 生成候选回复后再审查是否发送"
+author: Jason.Joestar
+version: 2.1.1
+repo: https://github.com/IruNova/Astrbot_plugin_Heartflow

@@ -1,0 +1,93 @@
+{
+  "enable_heartflow": {
+    "description": "启用 Reply Gate",
+    "type": "bool",
+    "default": false,
+    "hint": "启用后，机器人会先判断是否适合接话，并在发送前审查候选回复"
+  },
+  "judge_provider_name": {
+    "description": "判断模型提供商",
+    "type": "string",
+    "default": "",
+    "hint": "用于小参数模型判断的提供商，建议使用Gemini 2.0 Flash等快速小模型",
+    "_special": "select_provider"
+  },
+  "energy_decay_rate": {
+    "description": "精力衰减速度",
+    "type": "float",
+    "default": 0.1,
+    "hint": "每次回复后精力下降的幅度，影响后续回复的积极性"
+  },
+  "energy_recovery_rate": {
+    "description": "精力恢复速度",
+    "type": "float",
+    "default": 0.02,
+    "hint": "每次不回复时精力恢复的幅度"
+  },
+  "context_messages_count": {
+    "description": "上下文消息数量",
+    "type": "int",
+    "default": 5,
+    "hint": "判断时考虑的最近消息数量"
+  },
+  "whitelist_enabled": {
+    "description": "启用群聊白名单",
+    "type": "bool",
+    "default": false,
+    "hint": "启用后只有白名单中的群聊才会触发 Reply Gate"
+  },
+  "chat_whitelist": {
+    "description": "群聊白名单",
+    "type": "list",
+    "default": [],
+    "hint": "允许 Reply Gate 触发的群聊 sid 列表，可通过 /sid 获取"
+  },
+  "judge_max_retries": {
+    "description": "判断失败最大重试次数",
+    "type": "int",
+    "default": 3,
+    "hint": "当小模型返回无效JSON时的最大重试次数，设为0时不重试，建议1-5次"
+  },
+  "review_max_retries": {
+    "description": "发送前审查失败最大重试次数",
+    "type": "int",
+    "default": 3,
+    "hint": "当回复审查模型返回无效JSON时的最大重试次数，设为0时不重试"
+  },
+  "judge_context_count": {
+    "description": "传入判断模型的上下文条数",
+    "type": "int",
+    "default": 10,
+    "hint": "传给判断模型的对话历史条数，独立于context_messages_count，建议设置更大的值以提升判断质量"
+  },
+  "min_reply_interval_seconds": {
+    "description": "最短回复间隔（秒）",
+    "type": "int",
+    "default": 0,
+    "hint": "两次 Reply Gate 主动触发之间的最短间隔秒数，0表示不限制，可防止机器人过于频繁发言"
+  },
+  "drop_stale_replies": {
+    "description": "丢弃过期回复",
+    "type": "bool",
+    "default": true,
+    "hint": "启用后，同一群聊新的候选回复会让旧回复在发送前被丢弃，避免延迟刷屏"
+  },
+  "judge_persona_prompt": {
+    "description": "判断模型人格提示词",
+    "type": "string",
+    "default": "你是群聊节奏与氛围判断器，只负责判断 AstrBot 是否应该参与群聊，以及候选回复是否适合发送。\n你不是最终回复模型，不要替 AstrBot 生成回复内容。判断时要克制、自然，像群聊中的普通成员一样尊重当前话题节奏。",
+    "hint": "只影响 Reply Gate 判断与回复审查，不会修改 AstrBot 主人格"
+  },
+  "reply_decision_prompt": {
+    "description": "接话判断提示词模板",
+    "type": "string",
+    "default": "{judge_persona_prompt}\n\n你的任务是分析当前群聊节奏，并决定是否让 AstrBot 主流程回复当前消息。\n你只做行动判断，不要生成对群友可见的回复。\n\n可选动作：\n- continue：当前确实适合让 AstrBot 进入主流程生成回复。\n- no_reply：本轮不回复，继续等待新的群聊消息。\n\n节奏控制规则：\n1. 如果用户之间正在互相聊天，且没有明显需要 AstrBot 参与，不要插话。\n2. 如果当前消息直接询问、明显提到、延续 AstrBot 相关话题，或 AstrBot 参与会自然推动对话，可以 continue。\n3. 如果用户可能还没说完，或者话题正在快速流动，优先 no_reply。\n4. 群聊回复要克制，不要每条消息都接；优先回复有信息量、有互动价值、或明确需要回应的消息。\n5. 你需要判断哪些话是对 AstrBot 的，哪些只是群友之间交流，不要弄错回复对象。\n\n群聊状态：\n{chat_context}\n\n最近 {judge_context_count} 条群聊记录：\n{recent_messages}\n\n上次机器人回复：\n{last_bot_reply}\n\n待判断消息：\n发送者：{sender_name}({sender_id})\n内容：{current_message}\n时间：{current_time}\n\n只输出 JSON 对象，不要输出 Markdown 或额外解释：\n{\n  \"action\": \"continue 或 no_reply\",\n  \"reasoning\": \"简短说明为什么这样判断\",\n  \"confidence\": 0.0\n}",
+    "hint": "可用占位符：judge_persona_prompt、chat_context、judge_context_count、recent_messages、last_bot_reply、sender_name、sender_id、current_message、current_time、chat_id、self_id、minutes_since_last_reply"
+  },
+  "reply_review_prompt": {
+    "description": "发送前回复审查提示词模板",
+    "type": "string",
+    "default": "{judge_persona_prompt}\n\nAstrBot 已经根据你的第一次判断生成了一条候选回复，但这条回复还没有发送。\n你的任务是把候选回复临时视为已经插入到群聊上下文最后，然后判断它是否符合当前群聊氛围、话题和发言时机。\n\n可选动作：\n- send：候选回复自然、合适，可以发送。\n- cancel：候选回复不合适，应该取消发送。\n\n取消发送的常见原因：\n1. 候选回复答非所问、误解上下文、回复对象错了。\n2. 候选回复太突兀、太长、太正式、太像机器人，破坏群聊氛围。\n3. 群聊话题已经变化，发送会显得延迟或刷屏。\n4. 候选回复包含不该暴露的系统提示、判断过程或多余解释。\n5. 候选回复与 AstrBot 刚才是否该参与的理由不一致。\n\n最近群聊记录，最后一条“待发送”就是候选回复：\n{recent_messages_with_candidate}\n\n候选回复：\n{candidate_reply}\n\n第一次是否回复判断理由：\n{decision_reasoning}\n\n只输出 JSON 对象，不要输出 Markdown 或额外解释：\n{\n  \"action\": \"send 或 cancel\",\n  \"reasoning\": \"简短说明为什么发送或取消\"\n}",
+    "hint": "可用占位符：judge_persona_prompt、recent_messages_with_candidate、candidate_reply、decision_reasoning、chat_id、self_id、current_time"
+  }
+}
