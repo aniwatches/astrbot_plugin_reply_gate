@@ -12,18 +12,6 @@
     "hint": "用于小参数模型判断的提供商，建议使用Gemini 2.0 Flash等快速小模型",
     "_special": "select_provider"
   },
-  "energy_decay_rate": {
-    "description": "精力衰减速度",
-    "type": "float",
-    "default": 0.1,
-    "hint": "每次回复后精力下降的幅度，影响后续回复的积极性"
-  },
-  "energy_recovery_rate": {
-    "description": "精力恢复速度",
-    "type": "float",
-    "default": 0.02,
-    "hint": "每次不回复时精力恢复的幅度"
-  },
   "context_messages_count": {
     "description": "上下文消息数量",
     "type": "int",

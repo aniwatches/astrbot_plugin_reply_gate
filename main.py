@@ -47,10 +47,7 @@ class RawMessage:
 @dataclass
 class ChatState:
     """群聊状态数据类"""
-    energy: float = 1.0
     last_reply_time: float = 0.0
-    last_energy_update_time: float = 0.0
-    last_reset_date: str = ""
     total_messages: int = 0
     total_replies: int = 0
 
@@ -178,9 +175,7 @@ class ReplyGatePlugin(star.Star):
         # 判断模型配置
         self.judge_provider_name = self.config.get("judge_provider_name", "")
 
-        # 回复门控状态参数配置
-        self.energy_decay_rate = self.config.get("energy_decay_rate", 0.1)
-        self.energy_recovery_rate = self.config.get("energy_recovery_rate", 0.02)
+        # 回复门控基础配置
         self.context_messages_count = self.config.get("context_messages_count", 5)
         self.judge_context_count = self.config.get("judge_context_count", self.context_messages_count)
         self.min_reply_interval = self.config.get("min_reply_interval_seconds", 0)
@@ -771,27 +766,7 @@ class ReplyGatePlugin(star.Star):
         """获取群聊状态"""
         if chat_id not in self.chat_states:
             self.chat_states[chat_id] = ChatState()
-
-        # 检查日期重置
-        today = datetime.date.today().isoformat()
-        state = self.chat_states[chat_id]
-
-        if state.last_reset_date != today:
-            state.last_reset_date = today
-            # 每日重置时恒复一些精力
-            state.energy = min(1.0, state.energy + 0.2)
-
-        # 基于时间流逝自然恢复精力（每 5 分钟回复 energy_recovery_rate * 5 精力）
-        now = time.time()
-        if state.last_energy_update_time == 0:
-            state.last_energy_update_time = now
-        else:
-            elapsed_minutes = (now - state.last_energy_update_time) / 60.0
-            time_recovery = elapsed_minutes * (self.energy_recovery_rate * 5)
-            state.energy = min(1.0, state.energy + time_recovery)
-            state.last_energy_update_time = now  # 重置计时起点，避免重复累加
-
-        return state
+        return self.chat_states[chat_id]
 
     def _get_minutes_since_last_reply(self, chat_id: str) -> int:
         """获取距离上次回复的分钟数"""
@@ -896,7 +871,6 @@ class ReplyGatePlugin(star.Star):
 
         context_info = f"最近活跃度: {activity_level}\n"
         context_info += f"历史回复率: {(chat_state.total_replies / max(1, chat_state.total_messages) * 100):.1f}%\n"
-        context_info += f"当前精力水平: {chat_state.energy:.1f}/1.0\n"
         context_info += f"上次发言: {self._get_minutes_since_last_reply(event.unified_msg_origin)}分钟前\n"
         context_info += f"当前时间: {datetime.datetime.now().strftime('%H:%M')}"
 
@@ -913,18 +887,12 @@ class ReplyGatePlugin(star.Star):
         # 更新回复相关状态
         now = time.time()
         chat_state.last_reply_time = now
-        chat_state.last_energy_update_time = now
         if not getattr(event, "_heartflow_active_state_updated", False):
             chat_state.total_replies += 1
             chat_state.total_messages += 1
             setattr(event, "_heartflow_active_state_updated", True)
 
-        # 精力消耗（回复后精力下降）
-        if not getattr(event, "_heartflow_energy_decayed", False):
-            chat_state.energy = max(0.1, chat_state.energy - self.energy_decay_rate)
-            setattr(event, "_heartflow_energy_decayed", True)
-
-        logger.debug(f"更新主动状态: {chat_id[:20]}... | 精力: {chat_state.energy:.2f}")
+        logger.debug(f"更新主动状态: {chat_id[:20]}...")
 
     def _update_passive_state(self, event: AstrMessageEvent, judge_result: JudgeResult):
         """更新被动状态（未回复）"""
@@ -934,10 +902,7 @@ class ReplyGatePlugin(star.Star):
         # 更新消息计数
         chat_state.total_messages += 1
 
-        # 精力恢复（不回复时精力缓慢恢复）
-        chat_state.energy = min(1.0, chat_state.energy + self.energy_recovery_rate)
-
-        logger.debug(f"更新被动状态: {chat_id[:20]}... | 精力: {chat_state.energy:.2f} | 原因: {judge_result.reasoning[:30]}...")
+        logger.debug(f"更新被动状态: {chat_id[:20]}... | 原因: {judge_result.reasoning[:30]}...")
 
     async def _send_reply_gate_status(self, event: AstrMessageEvent):
         chat_id = event.unified_msg_origin
@@ -948,7 +913,6 @@ class ReplyGatePlugin(star.Star):
 
 📊 **当前状态**
 - 群聊ID: {event.unified_msg_origin}
-- 精力水平: {chat_state.energy:.2f}/1.0 {'🟢' if chat_state.energy > 0.7 else '🟡' if chat_state.energy > 0.3 else '🔴'}
 - 上次回复: {self._get_minutes_since_last_reply(chat_id)}分钟前
 
 📈 **历史统计**
